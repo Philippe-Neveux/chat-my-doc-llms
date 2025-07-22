@@ -48,6 +48,9 @@ jobs:
           with:
             service: ${{ vars.SERVICE_NAME }}
             image: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/api-images/${{ vars.SERVICE_NAME }}:latest
+            flags: --allow-unauthenticated
+            secrets: |
+              GOOGLE_API_KEY=${{ secrets.GOOGLE_API_KEY }}
     
         - name: Deployment URL check
           run: 'curl "${{ steps.deploy.outputs.url }}"'
