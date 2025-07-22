@@ -47,9 +47,7 @@ jobs:
           uses: google-github-actions/deploy-cloudrun@v2
           with:
             service: ${{ vars.SERVICE_NAME }}
-            region: ${{ vars.GCP_REGION }}
-            image: gcr.io/${{ secrets.GCP_PROJECT_ID }}/${{ vars.SERVICE_NAME }}:latest
-            flags: --allow-unauthenticated
+            image: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/api-images/${{ vars.SERVICE_NAME }}:latest
     
         - name: Deployment URL check
           run: 'curl "${{ steps.deploy.outputs.url }}"'
