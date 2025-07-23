@@ -15,4 +15,4 @@ async def health():
 @app.post("/gemini")
 async def gemini(prompt: str):
     response = chat_with_gemini(prompt)
-    return {"message": response}
+    return {"response": response}
