@@ -12,7 +12,7 @@ async def root():
 async def health():
     return {"message": "This a new message"}
 
-@app.get("/gemini")
+@app.post("/gemini")
 async def gemini(prompt: str):
     response = chat_with_gemini(prompt)
     return {"message": response}
