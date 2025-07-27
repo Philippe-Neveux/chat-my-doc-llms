@@ -1,7 +1,10 @@
+from typing import Literal
+
+
 from fastapi import FastAPI
 from fastapi.responses import StreamingResponse
 from loguru import logger
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from chat_my_doc_llms.main import chat_with_gemini
 
@@ -15,7 +18,11 @@ async def generate_chat_responses(message):
 
 class ChatRequest(BaseModel):
     prompt: str
-    model_name: str = "gemini-2.0-flash-lite"
+    model_name: Literal[
+        "gemini-2.0-flash-lite",
+        "gemini-2.0-flash",
+        "gemini-1.5-pro"
+    ] = Field(default="gemini-2.0-flash-lite", description="The model to use for the chat request")
     
     model_config = {
         "json_schema_extra": {
