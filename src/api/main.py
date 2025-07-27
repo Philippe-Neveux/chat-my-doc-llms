@@ -1,6 +1,31 @@
 from fastapi import FastAPI
+from fastapi.responses import StreamingResponse
+from loguru import logger
+from pydantic import BaseModel
 
 from chat_my_doc_llms.main import chat_with_gemini
+
+from langchain.chat_models import init_chat_model
+
+llm = init_chat_model("gemini-2.0-flash-lite", model_provider="google_genai")
+
+async def generate_chat_responses(message):
+    async for chunk in llm.astream(message):
+        yield f"data: {chunk}\n\n"
+
+class ChatRequest(BaseModel):
+    prompt: str
+    model_name: str = "gemini-2.0-flash-lite"
+    
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "prompt": "Hey ! How can you help me ?",
+                "model_name": "gemini-2.0-flash"
+            }
+        }
+    }
+
 
 app = FastAPI()
 
@@ -13,11 +38,19 @@ async def health():
     return {"message": "This a new message"}
 
 @app.post("/gemini")
-async def gemini(prompt: str):
-    response = chat_with_gemini(prompt)
+async def gemini(chat: ChatRequest):
+    response = chat_with_gemini(chat.prompt)
     return {"message": response}
 
+@app.post("/gemini-stream")
+async def chat_stream(prompt: str):
+    return StreamingResponse(
+        generate_chat_responses(message=prompt),
+        media_type="text/event-stream"
+    )
+
+
 @app.post("/gemini-model")
-async def gemini_model(prompt: str, model_name: str):
-    response = chat_with_gemini(prompt, model_name)
+async def gemini_model(chat: ChatRequest):
+    response = chat_with_gemini(chat.prompt, chat.model_name)
     return {"message": response}
