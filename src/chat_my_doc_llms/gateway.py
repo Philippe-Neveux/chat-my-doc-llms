@@ -1,15 +1,11 @@
 from typing import Literal
 
-
 from fastapi import FastAPI
 from fastapi.responses import StreamingResponse
 from loguru import logger
 from pydantic import BaseModel, Field
 
-from chat_my_doc_llms.main import (
-    chat_with_gemini,
-    chat_with_gemini_stream
-)
+from chat_my_doc_llms.chats import chat_with_gemini, chat_with_gemini_stream
 
 
 class ChatRequest(BaseModel):

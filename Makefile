@@ -1,8 +1,17 @@
 run_api:
-	uv run fastapi run src/api/main.py
+	uv run fastapi run src/chat_my_doc_llms/gateway.py
 
 run_api_dev:
-	uv run fastapi dev src/api/main.py
+	uv run fastapi dev src/chat_my_doc_llms/gateway.py
+
+ruff:
+	uv run ruff check . --fix --select I
+
+mypy:
+	uv run mypy src/
+
+test:
+	uv run pytest tests/unit -v --cov=src --cov-report=html --cov-report=term
 
 GCP_REGION ?= australia-southeast1
 GCP_PROJECT_ID ?= gen-ai-466406
