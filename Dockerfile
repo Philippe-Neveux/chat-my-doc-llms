@@ -13,4 +13,4 @@ RUN uv sync --locked
 
 EXPOSE ${PORT}
 
-CMD ["sh", "-c", "uv run fastapi run src/api/main.py --port ${PORT}"]
+CMD ["sh", "-c", "uv run fastapi run src/chat_my_doc_llms/gateway.py --port ${PORT}"]
