@@ -26,3 +26,7 @@ tag_docker_image_for_gcp:
 
 push_docker_image_to_gcp:
 	docker push $(GCP_REGION)-docker.pkg.dev/$(GCP_PROJECT_ID)/$(GCP_ARTIFACT_REPOSITORY)/$(DOCKER_IMAGE_NAME):latest
+
+
+deploy-mistral:
+	cd src/deploy && uv run ansible-playbook -i inventory.yml playbooks/deploy-mistral.yml -v

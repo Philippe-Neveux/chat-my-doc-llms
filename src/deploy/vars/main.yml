@@ -1,0 +1,49 @@
+---
+# Main configuration variables for deployment
+
+# Project configuration
+project_name: "chat-my-doc-llms"
+service_name: "mistral-7b-service"
+container_name: "{{ service_name }}"
+
+# Network configuration
+container_port: 3000
+host_port: 3000
+firewall_port: 3000
+
+# Resource limits
+memory_limit: "4g"
+cpu_limit: "2"
+swap_limit: "2g"
+
+# Model configuration
+model_name: "TheBloke/Mistral-7B-Instruct-v0.1-GPTQ"
+model_cache_dir: "/opt/{{ project_name }}/model_cache"
+huggingface_cache_dir: "/opt/{{ project_name }}/hf_cache"
+
+# Application paths
+app_dir: "/opt/{{ project_name }}"
+source_dir: "{{ app_dir }}/src"
+logs_dir: "{{ app_dir }}/logs"
+config_dir: "{{ app_dir }}/config"
+
+# Docker configuration
+docker_network: "{{ project_name }}-network"
+docker_image: "{{ project_name }}:latest"
+docker_registry: "gcr.io"  # Change if using different registry
+
+
+# Environment variables for container
+env_vars:
+  TRANSFORMERS_CACHE: "{{ model_cache_dir }}"
+  HF_HOME: "{{ huggingface_cache_dir }}"
+  TORCH_HOME: "{{ model_cache_dir }}/torch"
+  PYTHONPATH: "/opt/conda/lib/python3.11/site-packages"
+  LOG_LEVEL: "INFO"
+
+# Health check configuration
+health_check:
+  interval: 30
+  timeout: 10
+  retries: 3
+  start_period: 120

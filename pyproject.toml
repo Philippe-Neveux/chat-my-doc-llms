@@ -3,12 +3,22 @@ name = "chat-my-doc-llms"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.11"
 dependencies = [
+    "accelerate>=1.10.0",
+    "ansible>=11.9.0",
     "bentoml>=1.4.20",
+    "bitsandbytes>=0.45.0 ; sys_platform == 'linux'",
+    "datasets>=2.14.4",
     "fastapi[standard]>=0.116.1",
     "google-genai>=1.29.0",
     "loguru>=0.7.3",
+    "optimum>=1.27.0",
+    "protobuf>=6.32.0",
+    "pyarrow>=12.0.0,<18.0.0",
+    "pydantic>=2.11.7",
+    "safetensors>=0.6.2",
+    "sentencepiece>=0.2.1",
     "torch>=2.8.0",
     "transformers>=4.55.2",
 ]

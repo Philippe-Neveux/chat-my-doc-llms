@@ -1,0 +1,140 @@
+---
+- name: Create application directory
+  file:
+    path: "{{ app_dir }}"
+    state: directory
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: '0755'
+
+- name: Create src directory
+  file:
+    path: "{{ app_dir }}/src"
+    state: directory
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: '0755'
+
+- name: Copy source code
+  synchronize:
+    src: ../../../chat_my_doc_llms/
+    dest: "{{ app_dir }}/src/chat_my_doc_llms/"
+    delete: yes
+    recursive: yes
+
+- name: Copy pyproject.toml
+  copy:
+    src: ../../../pyproject.toml
+    dest: "{{ app_dir }}/pyproject.toml"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: '0644'
+
+- name: Copy uv.lock
+  copy:
+    src: ../../../uv.lock
+    dest: "{{ app_dir }}/uv.lock"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: '0644'
+
+- name: Copy .python-version
+  copy:
+    src: ../../../.python-version
+    dest: "{{ app_dir }}/.python-version"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: '0644'
+
+- name: Install Python virtual environment with uv sync
+  shell: |
+    cd {{ app_dir }}
+    uv sync --locked
+  become_user: "{{ ansible_user }}"
+
+- name: Check if bento exists
+  shell: |
+    cd {{ app_dir }}/src/chat_my_doc_llms/deploy
+    uv run bentoml list | grep "mistral-service:0.1.0" || true
+  become_user: "{{ ansible_user }}"
+  register: existing_bento
+  ignore_errors: yes
+
+- name: Remove existing bento if found
+  shell: |
+    cd {{ app_dir }}/src/chat_my_doc_llms/deploy
+    uv run bentoml delete mistral-service:0.1.0
+  become_user: "{{ ansible_user }}"
+  when: existing_bento.stdout | length > 0
+  ignore_errors: yes
+
+- name: Create bento from bentoml package
+  shell: |
+    cd {{ app_dir }}/src/chat_my_doc_llms/deploy
+    uv run bentoml build --name mistral-service --version 0.1.0
+  become_user: "{{ ansible_user }}"
+  register: bento_build_result
+
+- name: Display bento build result
+  debug:
+    msg: "Bento build output: {{ bento_build_result.stdout }}"
+
+- name: Containerize the built bento
+  shell: |
+    cd {{ app_dir }}/src/chat_my_doc_llms/deploy
+    uv run bentoml containerize mistral-service:0.1.0
+  become_user: "{{ ansible_user }}"
+  register: bento_containerize_result
+
+- name: Display containerization result
+  debug:
+    msg: "Bento containerization output: {{ bento_containerize_result.stdout }}"
+
+- name: Check if bento container is running
+  shell: |
+    docker ps --filter "ancestor=mistral-service:0.1.0"
+  become_user: "{{ ansible_user }}"
+  register: running_container
+  ignore_errors: yes
+
+- name: Stop existing bento container if running
+  shell: |
+    docker stop {{ running_container.stdout }}
+    docker rm {{ running_container.stdout }}
+  become_user: "{{ ansible_user }}"
+  when: running_container.stdout is defined and running_container.stdout | length > 0
+  ignore_errors: yes
+
+- name: Deploy bento in container
+  shell: |
+    cd {{ app_dir }}/src/chat_my_doc_llms/deploy
+    docker run -d -p 3000:3000 mistral-service:0.1.0
+  become_user: "{{ ansible_user }}"
+  register: bento_serve
+
+- name: Wait for container to start
+  pause:
+    seconds: 10
+
+- name: Verify container is running
+  shell: |
+    docker ps --filter "ancestor=mistral-service:0.1.0"
+  become_user: "{{ ansible_user }}"
+  register: container_status
+  
+- name: Check service health endpoint
+  uri:
+    url: http://localhost:3000/healthz
+    method: GET
+    status_code: 200
+  register: health_check
+  retries: 5
+  delay: 5
+  until: health_check.status == 200
+
+- name: Display deployment status
+  debug:
+    msg: |
+      Container Status: {{ container_status.stdout }}
+      Health Check: {{ 'PASSED' if health_check.status == 200 else 'FAILED' }}
+      Service is accessible at: http://localhost:3000

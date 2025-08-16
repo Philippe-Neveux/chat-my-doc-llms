@@ -1,0 +1,24 @@
+all:
+  hosts:
+    gcp-vm:
+      ansible_host: 35.189.6.238
+      ansible_user: ubuntu 
+      ansible_ssh_private_key_file: ~/.ssh/gcp_rag_llms
+      ansible_python_interpreter: /usr/bin/python3
+  vars:
+    # Deployment configuration
+    project_name: chat-my-doc-llms
+    container_name: mistral-7b-service
+    container_port: 3000
+    host_port: 3000
+    
+    # Model configuration
+    model_name: "TheBloke/Mistral-7B-Instruct-v0.1-GPTQ"
+    max_memory: "4Gi"
+    
+    # Paths
+    app_dir: "/opt/{{ project_name }}"
+    docker_compose_file: "{{ app_dir }}/docker-compose.yml"
+    
+    # Docker configuration
+    docker_network: mistral-network
