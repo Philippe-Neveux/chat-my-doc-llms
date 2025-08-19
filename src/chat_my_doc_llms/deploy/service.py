@@ -6,9 +6,10 @@ the quantized Mistral model optimized for CPU deployment.
 """
 
 import gc
+import json
 import os
 import time
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Generator, Optional
 
 import bentoml
 import torch
@@ -16,7 +17,8 @@ from dotenv import load_dotenv
 from huggingface_hub import login
 from loguru import logger
 from pydantic import BaseModel, Field
-from transformers import AutoModelForCausalLM, AutoTokenizer, GenerationConfig
+from transformers import AutoModelForCausalLM, AutoTokenizer, GenerationConfig, TextIteratorStreamer
+from threading import Thread
 
 # Load environment variables from .env file
 load_dotenv()
@@ -110,7 +112,7 @@ class QuantizedMistralLoader:
             prompt,
             return_tensors="pt",
             truncation=True,
-            max_length=512
+            max_length=max_length
         )
         
         # Generate
@@ -128,6 +130,45 @@ class QuantizedMistralLoader:
         )
         
         return response.strip()
+    
+    def generate_text_stream(self, prompt: str, max_length: int = 512) -> Generator[str, None, None]:
+        """Generate text using streaming with the loaded model."""
+        if self.model is None or self.tokenizer is None:
+            raise ValueError("Model not loaded. Call load_model() first.")
+            
+        # Tokenize input
+        inputs = self.tokenizer(
+            prompt,
+            return_tensors="pt",
+            truncation=True,
+            max_length=max_length
+        )
+        
+        # Create streamer
+        streamer = TextIteratorStreamer(
+            self.tokenizer, 
+            skip_prompt=True, 
+            skip_special_tokens=True
+        )
+        
+        # Update generation config for streaming
+        generation_kwargs = {
+            **inputs,
+            "streamer": streamer,
+            "generation_config": self.generation_config,
+            "max_new_tokens": max_length
+        }
+        
+        # Start generation in separate thread
+        thread = Thread(target=self.model.generate, kwargs=generation_kwargs)
+        thread.start()
+        
+        # Yield tokens as they're generated
+        for token in streamer:
+            if token:
+                yield token
+        
+        thread.join()
     
     def get_model_info(self) -> dict:
         """Get information about the loaded model."""
@@ -283,6 +324,77 @@ class MistralService:
         except Exception as e:
             logger.error(f"Quick generation failed: {str(e)}")
             raise bentoml.exceptions.BentoMLException(f"Generation failed: {str(e)}")
+    
+    @bentoml.api
+    def generate_stream(self, request: GenerationRequest) -> Generator[str, None, None]:
+        """
+        Generate text with streaming response.
+        
+        Args:
+            request: Generation request with prompt and parameters
+            
+        Yields:
+            Generated tokens as Server-Sent Events (SSE)
+        """
+        try:
+            logger.info(f"Received streaming request for prompt: {request.prompt[:50]}...")
+            
+            # Generate text with streaming
+            for token in self.model_loader.generate_text_stream(
+                prompt=request.prompt,
+                max_length=request.max_length or 512
+            ):
+                # Format as SSE (Server-Sent Events)
+                sse_data = json.dumps({"token": token, "finished": False})
+                yield f"data: {sse_data}\n\n"
+            
+            # Send final event
+            final_data = json.dumps({"token": "", "finished": True})
+            yield f"data: {final_data}\n\n"
+            
+            # Force garbage collection
+            gc.collect()
+            
+            logger.info("Streaming generation completed successfully")
+            
+        except Exception as e:
+            logger.error(f"Error during streaming generation: {str(e)}")
+            error_data = json.dumps({"error": str(e), "finished": True})
+            yield f"data: {error_data}\n\n"
+    
+    @bentoml.api
+    def quick_generate_stream(self, prompt: str) -> Generator[str, None, None]:
+        """
+        Simple streaming text generation endpoint for quick testing.
+        
+        Args:
+            prompt: Input text prompt
+            
+        Yields:
+            Generated tokens as Server-Sent Events (SSE)
+        """
+        try:
+            logger.info(f"Quick streaming generation for: {prompt[:50]}...")
+            
+            for token in self.model_loader.generate_text_stream(
+                prompt=prompt,
+                max_length=256
+            ):
+                # Format as SSE
+                sse_data = json.dumps({"token": token, "finished": False})
+                yield f"data: {sse_data}\n\n"
+            
+            # Send final event
+            final_data = json.dumps({"token": "", "finished": True})
+            yield f"data: {final_data}\n\n"
+            
+            # Force garbage collection
+            gc.collect()
+            
+        except Exception as e:
+            logger.error(f"Quick streaming generation failed: {str(e)}")
+            error_data = json.dumps({"error": str(e), "finished": True})
+            yield f"data: {error_data}\n\n"
 
 
 # Create service instance
