@@ -16,6 +16,9 @@ all:
     model_name: "TheBloke/Mistral-7B-Instruct-v0.1-GPTQ"
     max_memory: "4Gi"
     
+    # Hugging Face token (from vault)
+    hf_token: "{{ vault_hf_token }}"
+    
     # Paths
     app_dir: "/opt/{{ project_name }}"
     docker_compose_file: "{{ app_dir }}/docker-compose.yml"

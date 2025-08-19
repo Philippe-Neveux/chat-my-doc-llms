@@ -18,8 +18,15 @@ swap_limit: "2g"
 
 # Model configuration
 model_name: "TheBloke/Mistral-7B-Instruct-v0.1-GPTQ"
+HF_HOME: /tmp/hf_home
+TORCH_HOME: /tmp/torch_cache
+HF_HUB_ENABLE_HF_TRANSFER: 1  
 model_cache_dir: "/opt/{{ project_name }}/model_cache"
 huggingface_cache_dir: "/opt/{{ project_name }}/hf_cache"
+
+
+HF_TOKEN: "{{ vault_hf_token }}"
+    
 
 # Application paths
 app_dir: "/opt/{{ project_name }}"
@@ -31,15 +38,6 @@ config_dir: "{{ app_dir }}/config"
 docker_network: "{{ project_name }}-network"
 docker_image: "{{ project_name }}:latest"
 docker_registry: "gcr.io"  # Change if using different registry
-
-
-# Environment variables for container
-env_vars:
-  TRANSFORMERS_CACHE: "{{ model_cache_dir }}"
-  HF_HOME: "{{ huggingface_cache_dir }}"
-  TORCH_HOME: "{{ model_cache_dir }}/torch"
-  PYTHONPATH: "/opt/conda/lib/python3.11/site-packages"
-  LOG_LEVEL: "INFO"
 
 # Health check configuration
 health_check:

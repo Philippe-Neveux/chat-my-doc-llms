@@ -52,10 +52,11 @@
     uv sync --locked
   become_user: "{{ ansible_user }}"
 
+
 - name: Check if bento exists
   shell: |
-    cd {{ app_dir }}/src/chat_my_doc_llms/deploy
-    uv run bentoml list | grep "mistral-service:0.1.0" || true
+    cd {{ app_dir }}
+    uv run bentoml list | grep "mistral-service:0.1.0"
   become_user: "{{ ansible_user }}"
   register: existing_bento
   ignore_errors: yes
@@ -63,7 +64,7 @@
 - name: Remove existing bento if found
   shell: |
     cd {{ app_dir }}/src/chat_my_doc_llms/deploy
-    uv run bentoml delete mistral-service:0.1.0
+    uv run bentoml delete mistral-service:0.1.0 -y
   become_user: "{{ ansible_user }}"
   when: existing_bento.stdout | length > 0
   ignore_errors: yes
@@ -71,13 +72,21 @@
 - name: Create bento from bentoml package
   shell: |
     cd {{ app_dir }}/src/chat_my_doc_llms/deploy
+    export HF_HOME=/tmp/hf_home
+    export TORCH_HOME=
+    export HF_HUB_ENABLE_HF_TRANSFER=1
     uv run bentoml build --name mistral-service --version 0.1.0
   become_user: "{{ ansible_user }}"
   register: bento_build_result
+  environment:
+    HF_TOKEN: "{{ vault_hf_token }}"
+    HF_HOME: "{{ huggingface_cache_dir }}"
+    HF_HUB_ENABLE_HF_TRANSFER: 1
 
-- name: Display bento build result
-  debug:
-    msg: "Bento build output: {{ bento_build_result.stdout }}"
+- name: Remove existing Docker image if it exists
+  shell: docker rmi mistral-service:0.1.0
+  become_user: "{{ ansible_user }}"
+  ignore_errors: yes
 
 - name: Containerize the built bento
   shell: |
@@ -86,9 +95,9 @@
   become_user: "{{ ansible_user }}"
   register: bento_containerize_result
 
-- name: Display containerization result
+- name: Debug containerize output
   debug:
-    msg: "Bento containerization output: {{ bento_containerize_result.stdout }}"
+    var: bento_containerize_result
 
 - name: Check if bento container is running
   shell: |
@@ -108,7 +117,7 @@
 - name: Deploy bento in container
   shell: |
     cd {{ app_dir }}/src/chat_my_doc_llms/deploy
-    docker run -d -p 3000:3000 mistral-service:0.1.0
+    docker run -d -p 3000:3000 -e HF_TOKEN="{{ vault_hf_token }}" mistral-service:0.1.0
   become_user: "{{ ansible_user }}"
   register: bento_serve
 
@@ -129,7 +138,7 @@
     status_code: 200
   register: health_check
   retries: 5
-  delay: 5
+  delay: 15
   until: health_check.status == 200
 
 - name: Display deployment status

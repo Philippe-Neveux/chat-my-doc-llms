@@ -5,13 +5,21 @@ This service provides REST API endpoints for text generation using
 the quantized Mistral model optimized for CPU deployment.
 """
 
-import bentoml
-from pydantic import BaseModel, Field
 import gc
-from loguru import logger
-from typing import Optional, Dict, Any
+import os
+import time
+from typing import Any, Dict, Optional
 
-from chat_my_doc_llms.deploy.model import QuantizedMistralLoader
+import bentoml
+import torch
+from dotenv import load_dotenv
+from huggingface_hub import login
+from loguru import logger
+from pydantic import BaseModel, Field
+from transformers import AutoModelForCausalLM, AutoTokenizer, GenerationConfig
+
+# Load environment variables from .env file
+load_dotenv()
 
 
 class GenerationRequest(BaseModel):
@@ -28,45 +36,155 @@ class GenerationResponse(BaseModel):
     model_info: Dict[str, Any]
 
 
+class QuantizedMistralLoader:
+    """Loader for language model optimized for CPU inference with dynamic quantization."""
+    
+    def __init__(self, model_name: str = "mistralai/Mistral-7B-Instruct-v0.3"):
+        self.model_name = model_name
+        self.model = None
+        self.tokenizer = None
+        self.generation_config = None
+        
+    def load_model(self):
+        """Load the Mistral model for CPU inference."""
+        total_start_time = time.time()
+        logger.info(f"Loading Mistral model for CPU: {self.model_name}")
+        
+        # Load tokenizer
+        logger.info("Loading tokenizer...")
+        tokenizer_start_time = time.time()
+        self.tokenizer = AutoTokenizer.from_pretrained(
+            self.model_name,
+            trust_remote_code=True,
+            padding_side="left",
+            local_files_only=False,
+            force_download=False
+        )
+        tokenizer_duration = time.time() - tokenizer_start_time
+        logger.info(f"Tokenizer loaded in {tokenizer_duration:.2f} seconds ({tokenizer_duration/60:.2f} minutes)")
+        
+        # Set pad token if not exists
+        if self.tokenizer.pad_token is None:
+            self.tokenizer.pad_token = self.tokenizer.eos_token
+            
+        # Load model for CPU inference
+        logger.info("Loading model for CPU inference...")
+        model_start_time = time.time()
+        
+        self.model = AutoModelForCausalLM.from_pretrained(
+            self.model_name,
+            device_map="cpu",
+            trust_remote_code=True,
+            torch_dtype=torch.bfloat16,
+            low_cpu_mem_usage=True,
+            local_files_only=False,
+            force_download=False
+        )
+        model_duration = time.time() - model_start_time
+        logger.info(f"Model loaded in {model_duration:.2f} seconds ({model_duration/60:.2f} minutes)")
+        
+        # Configure generation settings
+        self.generation_config = GenerationConfig(
+            max_new_tokens=512,
+            temperature=0.7,
+            top_p=0.9,
+            do_sample=True,
+            pad_token_id=self.tokenizer.eos_token_id,
+            eos_token_id=self.tokenizer.eos_token_id
+        )
+        
+        # Set number of threads for CPU optimization
+        torch.set_num_threads(2)
+        
+        total_duration = time.time() - total_start_time
+        logger.info(f"✅ Model loaded successfully! Total time: {total_duration:.2f} seconds ({total_duration/60:.2f} minutes)")
+        return self.model, self.tokenizer
+    
+    def generate_text(self, prompt: str, max_length: int = 512) -> str:
+        """Generate text using the loaded model."""
+        if self.model is None or self.tokenizer is None:
+            raise ValueError("Model not loaded. Call load_model() first.")
+            
+        # Tokenize input
+        inputs = self.tokenizer(
+            prompt,
+            return_tensors="pt",
+            truncation=True,
+            max_length=512
+        )
+        
+        # Generate
+        with torch.no_grad():
+            outputs = self.model.generate(
+                **inputs,
+                generation_config=self.generation_config,
+                max_new_tokens=max_length
+            )
+        
+        # Decode response
+        response = self.tokenizer.decode(
+            outputs[0][len(inputs["input_ids"][0]):],
+            skip_special_tokens=True
+        )
+        
+        return response.strip()
+    
+    def get_model_info(self) -> dict:
+        """Get information about the loaded model."""
+        if self.model is None or self.tokenizer is None:
+            return {"status": "not_loaded"}
+            
+        return {
+            "model_name": self.model_name,
+            "model_type": type(self.model).__name__,
+            "tokenizer_type": type(self.tokenizer).__name__,
+            "vocab_size": self.tokenizer.vocab_size,
+            "status": "loaded"
+        }
 
 my_image = (
     bentoml.images.Image(
         python_version="3.11",
         lock_python_packages=False
     )
-    .python_packages(
-        "bentoml>=1.2.0",
-        "transformers>=4.35.0",
-        "torch>=2.0.0,<2.1.0",
-        "accelerate>=0.24.0",
-        "bitsandbytes>=0.41.0",
-        "safetensors>=0.4.0",
-        "pydantic>=2.0.0",
-        "datasets>=2.14.0",
-        "sentencepiece>=0.1.99",
-        "protobuf>=3.20.0",
-        "loguru"
-    )
+    .requirements_file("./requirements.txt")
 )
+
+load_dotenv()
 
 @bentoml.service(
     name="mistral-service",
     image=my_image,
     envs=[
-        {"name": "TRANSFORMERS_CACHE", "value": "/tmp/transformers_cache"},
-        {"name": "HF_HOME", "value": "localhost"},
-        {"name": "TORCH_HOME", "value": "/tmp/torch_cache"},
+        {"name": "HF_HOME", "value": "/tmp/hf_home"},
+        {"name": "HF_TOKEN", "value": os.environ.get('HF_TOKEN', 'HF_TOKEN Not Found')},
+        {"name": "HF_HUB_ENABLE_HF_TRANSFER", "value": "1"}
     ],
-    resources={"cpu": "2000m", "memory": "4Gi"},
-    traffic={"timeout": 300}
+    resources={"cpu": "4", "memory": "20Gi"},
+    traffic={"timeout": 300},
 )
 class MistralService:
     """BentoML service for Mistral 7B text generation."""
     
+    def _check_env_variables(self):
+        """Check if required environment variables are set."""
+        logger.info("Checking environment variables...")
+        logger.info(f"HF_HOME: {os.environ.get('HF_HOME')}")
+        logger.info(f"HF_HUB_ENABLE_HF_TRANSFER: {os.environ.get('HF_HUB_ENABLE_HF_TRANSFER')}")
+        
+    
     def __init__(self):
         """Initialize the service and load the model."""
+        self._check_env_variables()
+
         logger.info("Initializing Mistral service...")
         self.model_loader = QuantizedMistralLoader()
+        
+        hf_token = os.environ.get('HF_TOKEN')
+        if hf_token:
+            login(hf_token, add_to_git_credential=False)
+        else:
+            raise ValueError("HF_TOKEN environment variable is not set. Please set it to your Hugging Face token.")
         
         # Load model during service initialization
         try:
@@ -93,7 +211,7 @@ class MistralService:
             # Generate text
             generated_text = self.model_loader.generate_text(
                 prompt=request.prompt,
-                max_length=request.max_length
+                max_length=request.max_length or 512
             )
             
             # Get model info

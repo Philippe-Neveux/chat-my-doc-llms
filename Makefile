@@ -28,5 +28,24 @@ push_docker_image_to_gcp:
 	docker push $(GCP_REGION)-docker.pkg.dev/$(GCP_PROJECT_ID)/$(GCP_ARTIFACT_REPOSITORY)/$(DOCKER_IMAGE_NAME):latest
 
 
-deploy-mistral:
-	cd src/deploy && uv run ansible-playbook -i inventory.yml playbooks/deploy-mistral.yml -v
+.PHONY: build deploy-mistral
+
+uv-env-to-requirements:
+	uv export --format requirements-txt --no-dev --no-hashes --no-editable | grep -v "^\\.$$" > src/chat_my_doc_llms/deploy/requirements.txt
+
+
+deploy-mistral: uv-env-to-requirements
+	cd src/deploy && uv run ansible-playbook -i inventory.yml playbooks/deploy-mistral.yml -v --vault-password-file .vault_pass
+
+deploy-mistral-debug: uv-env-to-requirements
+	cd src/deploy && uv run ansible-playbook -i inventory.yml playbooks/deploy-mistral.yml -vvv --vault-password-file .vault_pass
+
+encrypt-vault:
+	cd src/deploy && uv run ansible-vault encrypt vars/vault.yml --vault-password-file .vault_pass
+
+decrypt-vault:
+	cd src/deploy && uv run ansible-vault decrypt vars/vault.yml --vault-password-file .vault_pass
+
+edit-vault:
+	cd src/deploy && uv run ansible-vault edit vars/vault.yml --vault-password-file .vault_pass
+	

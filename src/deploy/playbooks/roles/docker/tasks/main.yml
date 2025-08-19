@@ -40,3 +40,12 @@
     name: "{{ ansible_user }}"
     groups: docker
     append: yes
+  become: yes
+
+- name: Clean up Docker to free disk space
+  shell: docker system prune -af --volumes
+  become_user: "{{ ansible_user }}"
+  ignore_errors: yes
+
+- name: Reset ssh connection to allow user changes to affect ansible
+  meta: reset_connection
