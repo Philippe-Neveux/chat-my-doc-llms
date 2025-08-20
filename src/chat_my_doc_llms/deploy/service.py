@@ -9,6 +9,7 @@ import gc
 import json
 import os
 import time
+from threading import Thread
 from typing import Any, Dict, Generator, Optional
 
 import bentoml
@@ -17,8 +18,12 @@ from dotenv import load_dotenv
 from huggingface_hub import login
 from loguru import logger
 from pydantic import BaseModel, Field
-from transformers import AutoModelForCausalLM, AutoTokenizer, GenerationConfig, TextIteratorStreamer
-from threading import Thread
+from transformers import (
+    AutoModelForCausalLM,
+    AutoTokenizer,
+    GenerationConfig,
+    TextIteratorStreamer,
+)
 
 # Load environment variables from .env file
 load_dotenv()
@@ -268,7 +273,7 @@ class MistralService:
             # Force garbage collection to free memory
             gc.collect()
             
-            logger.info("Generation completed successfully")
+            logger.info(f"Generation completed successfully. Response: {response}")
             return response
             
         except Exception as e:
@@ -296,34 +301,6 @@ class MistralService:
                 "status": "unhealthy",
                 "error": str(e)
             }
-    
-    @bentoml.api
-    def quick_generate(self, prompt: str) -> str:
-        """
-        Simple text generation endpoint for quick testing.
-        
-        Args:
-            prompt: Input text prompt
-            
-        Returns:
-            Generated text as plain string
-        """
-        try:
-            logger.info(f"Quick generation for: {prompt[:50]}...")
-            
-            generated_text = self.model_loader.generate_text(
-                prompt=prompt,
-                max_length=256
-            )
-            
-            # Force garbage collection
-            gc.collect()
-            
-            return generated_text
-            
-        except Exception as e:
-            logger.error(f"Quick generation failed: {str(e)}")
-            raise bentoml.exceptions.BentoMLException(f"Generation failed: {str(e)}")
     
     @bentoml.api
     def generate_stream(self, request: GenerationRequest) -> Generator[str, None, None]:
@@ -362,40 +339,6 @@ class MistralService:
             error_data = json.dumps({"error": str(e), "finished": True})
             yield f"data: {error_data}\n\n"
     
-    @bentoml.api
-    def quick_generate_stream(self, prompt: str) -> Generator[str, None, None]:
-        """
-        Simple streaming text generation endpoint for quick testing.
-        
-        Args:
-            prompt: Input text prompt
-            
-        Yields:
-            Generated tokens as Server-Sent Events (SSE)
-        """
-        try:
-            logger.info(f"Quick streaming generation for: {prompt[:50]}...")
-            
-            for token in self.model_loader.generate_text_stream(
-                prompt=prompt,
-                max_length=256
-            ):
-                # Format as SSE
-                sse_data = json.dumps({"token": token, "finished": False})
-                yield f"data: {sse_data}\n\n"
-            
-            # Send final event
-            final_data = json.dumps({"token": "", "finished": True})
-            yield f"data: {final_data}\n\n"
-            
-            # Force garbage collection
-            gc.collect()
-            
-        except Exception as e:
-            logger.error(f"Quick streaming generation failed: {str(e)}")
-            error_data = json.dumps({"error": str(e), "finished": True})
-            yield f"data: {error_data}\n\n"
-
-
+    
 # Create service instance
 service = MistralService()
