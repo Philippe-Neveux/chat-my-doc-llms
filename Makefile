@@ -40,6 +40,9 @@ deploy-mistral: uv-env-to-requirements
 deploy-mistral-debug: uv-env-to-requirements
 	cd src/deploy && uv run ansible-playbook -i inventory.yml playbooks/deploy-mistral.yml -vvv --vault-password-file .vault_pass
 
+restart-mistral:
+	cd src/deploy && uv run ansible-playbook -i inventory.yml playbooks/restart-mistral-app.yml -v
+
 encrypt-vault:
 	cd src/deploy && uv run ansible-vault encrypt vars/vault.yml --vault-password-file .vault_pass
 

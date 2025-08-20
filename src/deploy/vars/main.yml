@@ -3,7 +3,7 @@
 
 # Project configuration
 project_name: "chat-my-doc-llms"
-service_name: "mistral-7b-service"
+service_name: "mistral-service"
 container_name: "{{ service_name }}"
 
 # Network configuration
@@ -36,7 +36,7 @@ config_dir: "{{ app_dir }}/config"
 
 # Docker configuration
 docker_network: "{{ project_name }}-network"
-docker_image: "{{ project_name }}:latest"
+docker_image: "{{ service_name }}:0.1.0"
 docker_registry: "gcr.io"  # Change if using different registry
 
 # Health check configuration

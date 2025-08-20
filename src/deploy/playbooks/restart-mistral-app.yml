@@ -1,0 +1,43 @@
+---
+- name: Restart Mistral containerize service from Mistral Server
+  hosts: all
+  become: yes
+  vars_files:
+    - ../vars/main.yml
+
+  tasks:
+    - name: Stop existing mistral container
+      docker_container:
+        name: "{{ container_name }}"
+        state: stopped
+      ignore_errors: yes
+
+    - name: Remove existing mistral container
+      docker_container:
+        name: "{{ container_name }}"
+        state: absent
+      ignore_errors: yes
+
+    - name: Start mistral container with proper port mapping
+      docker_container:
+        name: "{{ container_name }}"
+        image: "{{ docker_image }}"
+        state: started
+        restart_policy: unless-stopped
+        ports:
+          - "{{ host_port }}:{{ container_port }}"
+        env:
+          HF_TOKEN: "{{ HF_TOKEN }}"
+          HF_HOME: "{{ HF_HOME }}"
+          TORCH_HOME: "{{ TORCH_HOME }}"
+          HF_HUB_ENABLE_HF_TRANSFER: "{{ HF_HUB_ENABLE_HF_TRANSFER }}"
+
+    - name: Wait for mistral service to be healthy
+      uri:
+        url: "http://localhost:{{ host_port }}/health"
+        method: GET
+        status_code: 200
+      register: result
+      until: result.status == 200
+      retries: 10
+      delay: 60
