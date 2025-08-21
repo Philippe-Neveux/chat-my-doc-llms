@@ -20,7 +20,7 @@ swap_limit: "2g"
 model_name: "TheBloke/Mistral-7B-Instruct-v0.1-GPTQ"
 HF_HOME: /tmp/hf_home
 TORCH_HOME: /tmp/torch_cache
-HF_HUB_ENABLE_HF_TRANSFER: 1  
+HF_HUB_ENABLE_HF_TRANSFER: "1"  
 model_cache_dir: "/opt/{{ project_name }}/model_cache"
 huggingface_cache_dir: "/opt/{{ project_name }}/hf_cache"
 
