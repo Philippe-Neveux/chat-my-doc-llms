@@ -143,7 +143,7 @@ async def chat_with_mistral_stream(message: str) -> AsyncIterator[str]:
                                 except json.JSONDecodeError:
                                     continue
                 else:
-                    raise ValueError(f"Error from Mistral streaming API: {response.status_code} - {await response.aread()}")
+                    raise ValueError(f"Error from Mistral streaming API: {response.status_code} - {(await response.aread()).decode('utf-8')}")
                     
     except httpx.HTTPStatusError as e:
         raise ValueError(f"HTTP Error from Mistral streaming API: {e.response.status_code} - {e.response.text}")

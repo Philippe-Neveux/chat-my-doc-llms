@@ -8,7 +8,7 @@ ruff:
 	uv run ruff check . --fix --select I
 
 mypy:
-	uv run mypy src/
+	uv run mypy .
 
 test:
 	uv run pytest tests/unit -v --cov=src --cov-report=html --cov-report=term

@@ -1,8 +1,14 @@
-from unittest.mock import Mock, patch, AsyncMock
-import pytest
-import httpx
+from unittest.mock import AsyncMock, Mock, patch
 
-from chat_my_doc_llms.chats import chat_with_gemini, chat_with_gemini_stream, chat_with_mistral, chat_with_mistral_stream
+import httpx
+import pytest
+
+from chat_my_doc_llms.chats import (
+    chat_with_gemini,
+    chat_with_gemini_stream,
+    chat_with_mistral,
+    chat_with_mistral_stream,
+)
 
 
 class TestChatWithGemini:
