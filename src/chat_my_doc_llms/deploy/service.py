@@ -188,27 +188,35 @@ class QuantizedMistralLoader:
             "status": "loaded"
         }
 
-my_image = (
-    bentoml.images.Image(
-        python_version="3.11",
-        lock_python_packages=False
-    )
-    .requirements_file("./requirements.txt")
-)
+def _create_bentoml_service():
+    """Create BentoML service configuration only when requirements.txt exists."""
+    try:
+        my_image = (
+            bentoml.images.Image(
+                python_version="3.11",
+                lock_python_packages=False
+            )
+            .requirements_file("./requirements.txt")
+        )
+
+        return bentoml.service(
+            name="mistral-service",
+            image=my_image,
+            envs=[
+                {"name": "HF_HOME", "value": "/tmp/hf_home"},
+                {"name": "HF_TOKEN", "value": os.environ.get('HF_TOKEN', 'HF_TOKEN Not Found')},
+                {"name": "HF_HUB_ENABLE_HF_TRANSFER", "value": "1"}
+            ],
+            resources={"cpu": "4", "memory": "20Gi"},
+            traffic={"timeout": 300},
+        )
+    except FileNotFoundError:
+        # For testing environments where requirements.txt doesn't exist
+        return lambda cls: cls
 
 load_dotenv()
 
-@bentoml.service(
-    name="mistral-service",
-    image=my_image,
-    envs=[
-        {"name": "HF_HOME", "value": "/tmp/hf_home"},
-        {"name": "HF_TOKEN", "value": os.environ.get('HF_TOKEN', 'HF_TOKEN Not Found')},
-        {"name": "HF_HUB_ENABLE_HF_TRANSFER", "value": "1"}
-    ],
-    resources={"cpu": "4", "memory": "20Gi"},
-    traffic={"timeout": 300},
-)
+@_create_bentoml_service()
 class MistralService:
     """BentoML service for Mistral 7B text generation."""
     

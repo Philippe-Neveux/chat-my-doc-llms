@@ -50,3 +50,9 @@ exclude = [
     ".venv/",
     "venv/",
 ]
+
+[tool.pytest.ini_options]
+filterwarnings = [
+    "ignore::pydantic.warnings.PydanticDeprecatedSince211",
+    "ignore::DeprecationWarning:.*SwigPy.*",
+]

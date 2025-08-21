@@ -51,4 +51,7 @@ decrypt-vault:
 
 edit-vault:
 	cd src/deploy && uv run ansible-vault edit vars/vault.yml --vault-password-file .vault_pass
-	
+
+clean:
+	rm -rf .pytest_cache .mypy_cache .ruff_cache .coverage htmlcov
+	rm -rf tests/unit/__pycache__ tests/integration/__pycache__

@@ -1,6 +1,8 @@
 import json
 import os
+from functools import wraps
 from typing import AsyncIterator, Literal
+from urllib.parse import urlparse
 
 import httpx
 from dotenv import load_dotenv
@@ -9,21 +11,27 @@ from loguru import logger
 
 load_dotenv()
 
-# Configure Gemini API
-GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-if not GOOGLE_API_KEY:
-    raise ValueError("GOOGLE_API_KEY environment variable is not set")
 
-client = genai.Client()
+def check_gemini_api_in_env_var(func):
+    """Decorator to check if Gemini API key is properly configured."""
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        if not os.getenv("GOOGLE_API_KEY"):
+            raise ValueError("GOOGLE_API_KEY environment variable is not set")
+        return func(*args, **kwargs)
+    return wrapper
 
-# Configure Mistral API
-MISTRAL_API_URL = os.getenv("MISTRAL_API_URL", "http://35.189.6.238:3000")
-logger.info(f"Using Mistral API URL: {MISTRAL_API_URL}")
+def check_mistral_url_in_env_var(func):
+    """Decorator to check if Mistral API URL is properly configured."""
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        if not os.getenv("MISTRAL_API_URL"):
+            raise ValueError("MISTRAL_API_URL environment variable is not set")
+        return func(*args, **kwargs)
+    return wrapper
 
-if not MISTRAL_API_URL or MISTRAL_API_URL == "None":
-    MISTRAL_API_URL = "http://35.189.6.238:3000"
-    logger.warning(f"MISTRAL_API_URL not set, using default: {MISTRAL_API_URL}")
 
+@check_gemini_api_in_env_var
 async def chat_with_gemini(
     message: str,
     model_name: Literal[
@@ -32,6 +40,8 @@ async def chat_with_gemini(
         "gemini-1.5-pro"
     ] = "gemini-2.0-flash-lite"
 ) -> str | None:
+    client = genai.Client()
+    
     response = await client.aio.models.generate_content(
         model=model_name,
         contents=message,
@@ -42,6 +52,7 @@ async def chat_with_gemini(
     return response.text
 
 
+@check_gemini_api_in_env_var
 async def chat_with_gemini_stream(
     message: str,
     model_name: Literal[
@@ -50,6 +61,8 @@ async def chat_with_gemini_stream(
         "gemini-1.5-pro"
     ] = "gemini-2.0-flash"
 ) -> AsyncIterator[str]:
+    client = genai.Client()
+    
     response = await client.aio.models.generate_content_stream(
         model=model_name,
         contents=message,
@@ -60,6 +73,7 @@ async def chat_with_gemini_stream(
             yield chunk.text
 
 
+@check_mistral_url_in_env_var
 async def chat_with_mistral(message: str) -> str | None:
     """
     Chat with Mistral LLM using the deployed BentoML service.
@@ -71,12 +85,13 @@ async def chat_with_mistral(message: str) -> str | None:
         The response text from Mistral or None if error
     """
     try:
-        logger.info(f"Sending request to Mistral API: {MISTRAL_API_URL}/generate")
+        mistral_api_url = os.getenv("MISTRAL_API_URL", "http://35.189.6.238:3000")
+        logger.info(f"Sending request to Mistral API: {mistral_api_url}/generate")
         logger.info(f"Prompt: {message[:100]}...")
         
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                f"{MISTRAL_API_URL}/generate",
+                f"{mistral_api_url}/generate",
                 headers={"Content-Type": "application/json"},
                 json={
                     "request": {
@@ -104,6 +119,7 @@ async def chat_with_mistral(message: str) -> str | None:
         raise ValueError(f"Unexpected error communicating with Mistral API: {type(e).__name__}: {str(e)}")
 
 
+@check_mistral_url_in_env_var
 async def chat_with_mistral_stream(message: str) -> AsyncIterator[str]:
     """
     Chat with Mistral LLM using streaming response.
@@ -115,10 +131,11 @@ async def chat_with_mistral_stream(message: str) -> AsyncIterator[str]:
         Text chunks from the streaming response
     """
     try:
+        mistral_api_url = os.getenv("MISTRAL_API_URL", "http://35.189.6.238:3000")
         async with httpx.AsyncClient() as client:
             async with client.stream(
                 "POST",
-                f"{MISTRAL_API_URL}/generate_stream",
+                f"{mistral_api_url}/generate_stream",
                 headers={"Content-Type": "application/json"},
                 json={
                     "request": {

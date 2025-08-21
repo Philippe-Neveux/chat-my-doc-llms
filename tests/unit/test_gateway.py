@@ -1,4 +1,4 @@
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -21,7 +21,7 @@ class TestRoutes:
 
 
 class TestGeminiEndpoint:
-    @patch('chat_my_doc_llms.gateway.chat_with_gemini')
+    @patch('chat_my_doc_llms.gateway.chat_with_gemini', new_callable=AsyncMock)
     def test_gemini_endpoint_success(self, mock_chat):
         mock_chat.return_value = "Test response from Gemini"
         
@@ -34,7 +34,7 @@ class TestGeminiEndpoint:
         assert response.json() == {"message": "Test response from Gemini"}
         mock_chat.assert_called_once_with("Hello", "gemini-2.0-flash-lite")
 
-    @patch('chat_my_doc_llms.gateway.chat_with_gemini')
+    @patch('chat_my_doc_llms.gateway.chat_with_gemini', new_callable=AsyncMock)
     def test_gemini_endpoint_default_model(self, mock_chat):
         mock_chat.return_value = "Default model response"
         
@@ -129,7 +129,7 @@ class TestChatRequestGeminiModel:
 
 
 class TestMistralEndpoint:
-    @patch('chat_my_doc_llms.gateway.chat_with_mistral')
+    @patch('chat_my_doc_llms.gateway.chat_with_mistral', new_callable=AsyncMock)
     def test_mistral_endpoint_success(self, mock_chat):
         mock_chat.return_value = "Test response from Mistral"
         
