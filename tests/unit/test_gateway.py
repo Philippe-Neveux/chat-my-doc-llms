@@ -61,6 +61,26 @@ class TestGeminiEndpoint:
         
         assert response.status_code == 422
 
+    @patch('chat_my_doc_llms.gateway.chat_with_gemini', new_callable=AsyncMock)
+    def test_gemini_endpoint_error_handling(self, mock_chat):
+        mock_chat.side_effect = ValueError("API Error")
+        
+        response = client.post("/gemini", json={
+            "prompt": "Hello",
+            "model_name": "gemini-2.0-flash-lite"
+        })
+        
+        assert response.status_code == 500
+        mock_chat.assert_called_once_with("Hello", "gemini-2.0-flash-lite")
+
+    def test_gemini_endpoint_empty_json(self):
+        response = client.post("/gemini", json={})
+        assert response.status_code == 422
+
+    def test_gemini_endpoint_invalid_json(self):
+        response = client.post("/gemini", data="invalid json")
+        assert response.status_code == 422
+
 
 class TestGeminiStreamEndpoint:
     @patch('chat_my_doc_llms.gateway.chat_with_gemini_stream')
@@ -100,6 +120,28 @@ class TestGeminiStreamEndpoint:
         response = client.post("/gemini-stream", json={
             "prompt": "Hello",
             "model_name": "invalid-model"
+        })
+        
+        assert response.status_code == 422
+
+    @patch('chat_my_doc_llms.gateway.chat_with_gemini_stream')
+    def test_gemini_stream_endpoint_error_handling(self, mock_chat_stream):
+        async def mock_error_stream():
+            raise ValueError("Stream API Error")
+            yield "never reached"
+        
+        mock_chat_stream.return_value = mock_error_stream()
+        
+        response = client.post("/gemini-stream", json={
+            "prompt": "Hello",
+            "model_name": "gemini-2.0-flash"
+        })
+        
+        assert response.status_code == 500
+
+    def test_gemini_stream_endpoint_missing_prompt(self):
+        response = client.post("/gemini-stream", json={
+            "model_name": "gemini-2.0-flash"
         })
         
         assert response.status_code == 422

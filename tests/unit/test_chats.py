@@ -73,6 +73,29 @@ class TestChatWithGemini:
             contents="Hello"
         )
 
+    @patch('chat_my_doc_llms.chats.os.getenv')
+    @pytest.mark.asyncio
+    async def test_chat_with_gemini_missing_api_key(self, mock_getenv):
+        # Mock missing environment variable
+        mock_getenv.return_value = None
+        
+        with pytest.raises(ValueError, match="GOOGLE_API_KEY environment variable is not set"):
+            await chat_with_gemini("Hello", "gemini-2.0-flash-lite")
+
+    @patch('chat_my_doc_llms.chats.genai.Client')
+    @patch('chat_my_doc_llms.chats.os.getenv')
+    @pytest.mark.asyncio
+    async def test_chat_with_gemini_api_exception(self, mock_getenv, mock_client_class):
+        # Mock environment variable
+        mock_getenv.return_value = "fake_api_key"
+        
+        mock_client = Mock()
+        mock_client.aio.models.generate_content = AsyncMock(side_effect=Exception("API Error"))
+        mock_client_class.return_value = mock_client
+        
+        with pytest.raises(Exception, match="API Error"):
+            await chat_with_gemini("Hello", "gemini-2.0-flash-lite")
+
 
 class TestChatWithGeminiStream:
     @patch('chat_my_doc_llms.chats.genai.Client')
@@ -185,6 +208,31 @@ class TestChatWithGeminiStream:
             contents="Hello"
         )
 
+    @patch('chat_my_doc_llms.chats.os.getenv')
+    @pytest.mark.asyncio
+    async def test_chat_with_gemini_stream_missing_api_key(self, mock_getenv):
+        # Mock missing environment variable
+        mock_getenv.return_value = None
+        
+        with pytest.raises(ValueError, match="GOOGLE_API_KEY environment variable is not set"):
+            async for chunk in chat_with_gemini_stream("Hello", "gemini-2.0-flash"):
+                pass
+
+    @patch('chat_my_doc_llms.chats.genai.Client')
+    @patch('chat_my_doc_llms.chats.os.getenv')
+    @pytest.mark.asyncio
+    async def test_chat_with_gemini_stream_api_exception(self, mock_getenv, mock_client_class):
+        # Mock environment variable
+        mock_getenv.return_value = "fake_api_key"
+        
+        mock_client = Mock()
+        mock_client.aio.models.generate_content_stream = AsyncMock(side_effect=Exception("Stream API Error"))
+        mock_client_class.return_value = mock_client
+        
+        with pytest.raises(Exception, match="Stream API Error"):
+            async for chunk in chat_with_gemini_stream("Hello", "gemini-2.0-flash"):
+                pass
+
 
 class TestChatWithMistral:
     @patch('chat_my_doc_llms.chats.httpx.AsyncClient')
@@ -272,6 +320,60 @@ class TestChatWithMistral:
         with pytest.raises(ValueError, match="Timeout Error from Mistral API: Timeout"):
             await chat_with_mistral("Hello")
 
+    @patch('chat_my_doc_llms.chats.os.getenv')
+    @pytest.mark.asyncio
+    async def test_chat_with_mistral_missing_api_url(self, mock_getenv):
+        # Mock missing environment variable
+        mock_getenv.return_value = None
+        
+        with pytest.raises(ValueError, match="MISTRAL_API_URL environment variable is not set"):
+            await chat_with_mistral("Hello")
+
+    @patch('chat_my_doc_llms.chats.httpx.AsyncClient')
+    @patch('chat_my_doc_llms.chats.os.getenv')
+    @pytest.mark.asyncio
+    async def test_chat_with_mistral_empty_response(self, mock_getenv, mock_async_client):
+        # Mock environment variable
+        def mock_getenv_side_effect(key, default=None):
+            if key == "MISTRAL_API_URL":
+                return "http://localhost:3000"
+            return default
+        mock_getenv.side_effect = mock_getenv_side_effect
+        
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {}  # Empty response
+        
+        mock_client_instance = Mock()
+        mock_client_instance.post = AsyncMock(return_value=mock_response)
+        mock_async_client.return_value.__aenter__.return_value = mock_client_instance
+        
+        result = await chat_with_mistral("Hello")
+        assert result == ""
+
+    @patch('chat_my_doc_llms.chats.httpx.AsyncClient')
+    @patch('chat_my_doc_llms.chats.os.getenv')
+    @pytest.mark.asyncio
+    async def test_chat_with_mistral_http_status_error(self, mock_getenv, mock_async_client):
+        # Mock environment variable
+        def mock_getenv_side_effect(key, default=None):
+            if key == "MISTRAL_API_URL":
+                return "http://localhost:3000"
+            return default
+        mock_getenv.side_effect = mock_getenv_side_effect
+        
+        mock_client_instance = Mock()
+        mock_response = Mock()
+        mock_response.status_code = 500
+        mock_response.text = "Internal Server Error"
+        mock_client_instance.post = AsyncMock(side_effect=httpx.HTTPStatusError(
+            "500 Internal Server Error", request=Mock(), response=mock_response
+        ))
+        mock_async_client.return_value.__aenter__.return_value = mock_client_instance
+        
+        with pytest.raises(ValueError, match="HTTP Error from Mistral API: 500"):
+            await chat_with_mistral("Hello")
+
 
 class TestChatWithMistralStream:
     @patch('chat_my_doc_llms.chats.httpx.AsyncClient')
@@ -333,5 +435,100 @@ class TestChatWithMistralStream:
         mock_async_client.return_value.__aenter__.return_value = mock_client_instance
         
         with pytest.raises(ValueError, match="Error from Mistral streaming API: 500"):
+            async for chunk in chat_with_mistral_stream("Hello"):
+                pass
+
+    @patch('chat_my_doc_llms.chats.os.getenv')
+    @pytest.mark.asyncio
+    async def test_chat_with_mistral_stream_missing_api_url(self, mock_getenv):
+        # Mock missing environment variable
+        mock_getenv.return_value = None
+        
+        with pytest.raises(ValueError, match="MISTRAL_API_URL environment variable is not set"):
+            async for chunk in chat_with_mistral_stream("Hello"):
+                pass
+
+    @patch('chat_my_doc_llms.chats.httpx.AsyncClient')
+    @patch('chat_my_doc_llms.chats.os.getenv')
+    @pytest.mark.asyncio
+    async def test_chat_with_mistral_stream_json_decode_error(self, mock_getenv, mock_async_client):
+        # Mock environment variable
+        def mock_getenv_side_effect(key, default=None):
+            if key == "MISTRAL_API_URL":
+                return "http://localhost:3000"
+            return default
+        mock_getenv.side_effect = mock_getenv_side_effect
+        
+        mock_response = Mock()
+        mock_response.status_code = 200
+        
+        async def mock_aiter_lines():
+            yield 'data: invalid json'
+            yield 'data: {"token": "valid", "finished": false}'
+            yield 'data: {"token": "", "finished": true}'
+        
+        mock_response.aiter_lines = mock_aiter_lines
+        
+        mock_stream_context = AsyncMock()
+        mock_stream_context.__aenter__ = AsyncMock(return_value=mock_response)
+        mock_stream_context.__aexit__ = AsyncMock(return_value=None)
+        
+        mock_client_instance = Mock()
+        mock_client_instance.stream.return_value = mock_stream_context
+        mock_async_client.return_value.__aenter__.return_value = mock_client_instance
+        
+        result = []
+        async for chunk in chat_with_mistral_stream("Hello"):
+            result.append(chunk)
+        
+        assert result == ["valid"]
+
+    @patch('chat_my_doc_llms.chats.httpx.AsyncClient')
+    @patch('chat_my_doc_llms.chats.os.getenv')
+    @pytest.mark.asyncio
+    async def test_chat_with_mistral_stream_error_in_data(self, mock_getenv, mock_async_client):
+        # Mock environment variable
+        def mock_getenv_side_effect(key, default=None):
+            if key == "MISTRAL_API_URL":
+                return "http://localhost:3000"
+            return default
+        mock_getenv.side_effect = mock_getenv_side_effect
+        
+        mock_response = Mock()
+        mock_response.status_code = 200
+        
+        async def mock_aiter_lines():
+            yield 'data: {"error": "Something went wrong"}'
+        
+        mock_response.aiter_lines = mock_aiter_lines
+        
+        mock_stream_context = AsyncMock()
+        mock_stream_context.__aenter__ = AsyncMock(return_value=mock_response)
+        mock_stream_context.__aexit__ = AsyncMock(return_value=None)
+        
+        mock_client_instance = Mock()
+        mock_client_instance.stream.return_value = mock_stream_context
+        mock_async_client.return_value.__aenter__.return_value = mock_client_instance
+        
+        with pytest.raises(ValueError, match="Streaming error: Something went wrong"):
+            async for chunk in chat_with_mistral_stream("Hello"):
+                pass
+
+    @patch('chat_my_doc_llms.chats.httpx.AsyncClient')
+    @patch('chat_my_doc_llms.chats.os.getenv')
+    @pytest.mark.asyncio
+    async def test_chat_with_mistral_stream_connection_error(self, mock_getenv, mock_async_client):
+        # Mock environment variable
+        def mock_getenv_side_effect(key, default=None):
+            if key == "MISTRAL_API_URL":
+                return "http://localhost:3000"
+            return default
+        mock_getenv.side_effect = mock_getenv_side_effect
+        
+        mock_client_instance = Mock()
+        mock_client_instance.stream.side_effect = httpx.ConnectError("Connection failed")
+        mock_async_client.return_value.__aenter__.return_value = mock_client_instance
+        
+        with pytest.raises(ValueError, match="Connection Error to Mistral streaming API: Connection failed"):
             async for chunk in chat_with_mistral_stream("Hello"):
                 pass
