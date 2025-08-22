@@ -41,7 +41,11 @@ class ChatRequestMistral(BaseModel):
     }
 
 
-app = FastAPI()
+app = FastAPI(
+    title="Chat My Doc Gateway API",
+    description="Multi-model LLM Gateway supporting Gemini (API) and Mistral (self-hosted)",
+    version="0.1.0"
+)
 
 @app.get("/")
 async def root():
