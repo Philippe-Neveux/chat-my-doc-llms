@@ -3,7 +3,7 @@
 A FastAPI-based application that provides a unified gateway for multiple LLM providers including Google Gemini and Mistral models for AI-powered conversations.
 
 
-![Sagger_api](./doc/Swagger_Gateway.png)
+![Sagger_api](./docs/Swagger_Gateway.png)
 
 ## Features
 
